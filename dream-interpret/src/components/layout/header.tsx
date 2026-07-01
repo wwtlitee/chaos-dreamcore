@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Menu, X, User, MoonStar, Sparkles } from "lucide-react";
+import { Menu, X, MoonStar, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { oracleModules, type OracleModule } from "@/lib/oracle-modules";
 
@@ -57,13 +57,6 @@ export function Header() {
           </nav>
 
           <div className="hidden items-center gap-3 md:flex">
-            <Link
-              href="/user/login"
-              className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-sm text-white/72 transition-colors hover:bg-white/[0.04] hover:text-white"
-            >
-              <User className="size-4" />
-              登录
-            </Link>
             <Link href="/dream" className="magnet-button min-h-9 px-4 py-2 text-sm">
               <Sparkles className="size-4" />
               开始解析
@@ -97,13 +90,6 @@ export function Header() {
                   {item.title}
                 </Link>
               ))}
-              <Link
-                href="/user/login"
-                className="rounded-lg px-2 py-2 text-white/72 transition-colors hover:bg-white/[0.04] hover:text-white"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                登录
-              </Link>
               <Link
                 href="/dream"
                 className="magnet-button mt-2"
