@@ -1,5 +1,5 @@
-import { OracleWorkspace } from "@/components/oracle/oracle-workspace";
+import { redirect } from "next/navigation";
 
 export default function PalmPage() {
-  return <OracleWorkspace oracleKey="palm" />;
+  redirect("/token");
 }

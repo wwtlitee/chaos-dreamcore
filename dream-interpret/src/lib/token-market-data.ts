@@ -12,16 +12,19 @@ export interface ChainDetection {
   detectedChain: DetectedChain | "unknown";
   confidence: DetectionConfidence;
   candidatesTried: DetectedChain[];
-  source: "dexscreener" | "onchainos_cli" | "heuristic" | "none";
+  source: "okx_public" | "binance_public" | "dexscreener" | "onchainos_cli" | "heuristic" | "none";
   reason: string;
 }
 
 export interface TokenMarketSnapshot {
-  source: "dexscreener" | "onchainos_cli";
-  chain: DetectedChain;
+  source: "okx_public" | "binance_public" | "dexscreener" | "onchainos_cli";
+  chain?: DetectedChain;
   tokenAddress: string;
   tokenName?: string;
   tokenSymbol?: string;
+  instId?: string;
+  baseCcy?: string;
+  quoteCcy?: string;
   pairAddress?: string;
   pairUrl?: string;
   dexId?: string;
@@ -98,14 +101,68 @@ interface OnchainAdvancedInfo {
   top10HoldPercent?: string;
 }
 
+interface OkxInstrument {
+  instId?: string;
+  baseCcy?: string;
+  quoteCcy?: string;
+  state?: string;
+}
+
+interface OkxTicker {
+  instId?: string;
+  last?: string;
+  open24h?: string;
+  high24h?: string;
+  low24h?: string;
+  vol24h?: string;
+  volCcy24h?: string;
+  ts?: string;
+}
+
+interface BinanceTicker24H {
+  symbol?: string;
+  priceChangePercent?: string;
+  lastPrice?: string;
+  highPrice?: string;
+  lowPrice?: string;
+  volume?: string;
+  quoteVolume?: string;
+  closeTime?: number;
+}
+
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const OKX_SPOT_QUOTES = ["USDT", "USDC", "USD", "BTC", "ETH"];
 
 const CHAIN_BY_OKX_INDEX: Record<string, DetectedChain> = {
   "1": "ethereum",
   "56": "bsc",
   "8453": "base",
   "501": "solana",
+};
+
+const EXCHANGE_SYMBOL_ALIASES: Record<string, string> = {
+  bitcoin: "BTC",
+  btc: "BTC",
+  ethereum: "ETH",
+  ether: "ETH",
+  eth: "ETH",
+  bnb: "BNB",
+  "binance coin": "BNB",
+  binancecoin: "BNB",
+  solana: "SOL",
+  sol: "SOL",
+  dogecoin: "DOGE",
+  doge: "DOGE",
+  ripple: "XRP",
+  xrp: "XRP",
+  cardano: "ADA",
+  ada: "ADA",
+  toncoin: "TON",
+  ton: "TON",
+  tron: "TRX",
+  trx: "TRX",
+  okb: "OKB",
 };
 
 export async function resolveTokenMarketData(input: {
@@ -116,12 +173,30 @@ export async function resolveTokenMarketData(input: {
   const token = input.token.trim();
   const candidates = buildChainCandidates(token, input.chain);
 
+  if (!isLikelyContractAddress(token) && !input.chain) {
+    const exchangeSnapshot = await fetchExchangeSpotSnapshot(token);
+    if (exchangeSnapshot) {
+      return {
+        detection: {
+          input: token,
+          detectedChain: "unknown",
+          confidence: "high",
+          candidatesTried: [],
+          source: exchangeSnapshot.source,
+          reason: `${exchangeSnapshot.source}_spot_market_found`,
+        },
+        snapshot: exchangeSnapshot,
+        metrics: mergeMetrics(input.metrics, snapshotToMetrics(exchangeSnapshot)),
+      };
+    }
+  }
+
   const dexSnapshot = await fetchBestDexScreenerSnapshot(token, candidates);
   if (dexSnapshot) {
     return {
       detection: {
         input: token,
-        detectedChain: dexSnapshot.chain,
+        detectedChain: dexSnapshot.chain ?? candidates[0] ?? "unknown",
         confidence: "high",
         candidatesTried: candidates,
         source: "dexscreener",
@@ -137,7 +212,7 @@ export async function resolveTokenMarketData(input: {
     return {
       detection: {
         input: token,
-        detectedChain: onchainSnapshot.chain,
+        detectedChain: onchainSnapshot.chain ?? candidates[0] ?? "unknown",
         confidence: "high",
         candidatesTried: candidates,
         source: "onchainos_cli",
@@ -178,6 +253,134 @@ function normalizeChain(chain?: string): DetectedChain | null {
   if (value === "sol" || value === "solana" || value === "501") return "solana";
   if (value === "base" || value === "8453") return "base";
   return null;
+}
+
+function isLikelyContractAddress(token: string): boolean {
+  return EVM_ADDRESS_PATTERN.test(token) || SOLANA_ADDRESS_PATTERN.test(token) || token.endsWith("pump");
+}
+
+async function fetchExchangeSpotSnapshot(token: string): Promise<TokenMarketSnapshot | null> {
+  return (await fetchOkxSpotSnapshot(token)) ?? (await fetchBinanceSpotSnapshot(token));
+}
+
+async function fetchOkxSpotSnapshot(token: string): Promise<TokenMarketSnapshot | null> {
+  const instrument = await findOkxSpotInstrument(token);
+  if (!instrument?.instId) return null;
+
+  const ticker = await fetchOkxTicker(instrument.instId);
+  if (!ticker) return null;
+
+  const priceUsd = parseNumeric(ticker.last);
+  const open24h = parseNumeric(ticker.open24h);
+  const priceChange24H =
+    priceUsd !== undefined && open24h !== undefined && open24h > 0
+      ? Math.round(((priceUsd - open24h) / open24h) * 10000) / 100
+      : undefined;
+  const volume24H = parseNumeric(ticker.volCcy24h) ?? parseNumeric(ticker.vol24h);
+
+  return {
+    source: "okx_public",
+    tokenAddress: instrument.instId,
+    tokenName: instrument.baseCcy,
+    tokenSymbol: instrument.baseCcy,
+    instId: instrument.instId,
+    baseCcy: instrument.baseCcy,
+    quoteCcy: instrument.quoteCcy,
+    priceUsd,
+    priceChange24H,
+    volume24H,
+    riskFlags: ["exchange_spot_market"],
+    fetchedAt: ticker.ts ? new Date(Number(ticker.ts)).toISOString() : new Date().toISOString(),
+  };
+}
+
+async function fetchBinanceSpotSnapshot(token: string): Promise<TokenMarketSnapshot | null> {
+  const query = normalizeExchangeQuery(token);
+  if (!query || query.includes("-")) return null;
+
+  const symbol = `${query}USDT`;
+  try {
+    const response = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 20 },
+    });
+    if (!response.ok) return null;
+    const ticker = (await response.json()) as BinanceTicker24H;
+    if (!ticker.symbol) return null;
+
+    return {
+      source: "binance_public",
+      tokenAddress: ticker.symbol,
+      tokenName: query,
+      tokenSymbol: query,
+      instId: ticker.symbol,
+      baseCcy: query,
+      quoteCcy: "USDT",
+      priceUsd: parseNumeric(ticker.lastPrice),
+      priceChange24H: parseNumeric(ticker.priceChangePercent),
+      volume24H: parseNumeric(ticker.quoteVolume) ?? parseNumeric(ticker.volume),
+      riskFlags: ["exchange_spot_market"],
+      fetchedAt: ticker.closeTime ? new Date(ticker.closeTime).toISOString() : new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function findOkxSpotInstrument(token: string): Promise<OkxInstrument | null> {
+  const query = normalizeExchangeQuery(token);
+  if (!query) return null;
+
+  const instruments = await fetchOkxSpotInstruments();
+  const live = instruments.filter((instrument) => instrument.state === "live");
+  const directInst = query.includes("-") ? query : `${query}-USDT`;
+  const directMatch = live.find((instrument) => instrument.instId?.toUpperCase() === directInst);
+  if (directMatch) return directMatch;
+
+  const symbolMatches = live.filter((instrument) => instrument.baseCcy?.toUpperCase() === query);
+  if (symbolMatches.length === 0) return null;
+
+  return (
+    OKX_SPOT_QUOTES.map((quote) => symbolMatches.find((instrument) => instrument.quoteCcy?.toUpperCase() === quote)).find(
+      Boolean,
+    ) ?? symbolMatches[0]
+  );
+}
+
+async function fetchOkxSpotInstruments(): Promise<OkxInstrument[]> {
+  try {
+    const response = await fetch("https://www.okx.com/api/v5/public/instruments?instType=SPOT", {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return [];
+    const json = (await response.json()) as { data?: OkxInstrument[] };
+    return Array.isArray(json.data) ? json.data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchOkxTicker(instId: string): Promise<OkxTicker | null> {
+  try {
+    const response = await fetch(`https://www.okx.com/api/v5/market/ticker?instId=${encodeURIComponent(instId)}`, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 20 },
+    });
+    if (!response.ok) return null;
+    const json = (await response.json()) as { data?: OkxTicker[] };
+    return Array.isArray(json.data) ? json.data[0] ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeExchangeQuery(token: string): string {
+  const lower = token.trim().toLowerCase().replace(/\s+/g, " ");
+  const alias = EXCHANGE_SYMBOL_ALIASES[lower] || EXCHANGE_SYMBOL_ALIASES[lower.replace(/\s+/g, "")];
+  if (alias) return alias;
+  const cleaned = token.trim().toUpperCase().replace("/", "-").replace(/\s+/g, "-");
+  return /^[A-Z0-9-]{2,30}$/.test(cleaned) ? cleaned : "";
 }
 
 async function fetchBestDexScreenerSnapshot(

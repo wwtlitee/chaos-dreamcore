@@ -21,25 +21,25 @@ const ritualSlots: Record<OracleKey, { label: string; value: string }[]> = {
     { label: "TIME", value: "时位" },
     { label: "MOVE", value: "动爻" },
   ],
-  tarot: [
-    { label: "CARD", value: "牌面" },
-    { label: "SPREAD", value: "牌阵" },
-    { label: "SIGN", value: "启示" },
+  stock: [
+    { label: "TICKER", value: "代码" },
+    { label: "TREND", value: "趋势" },
+    { label: "RISK", value: "风险" },
   ],
-  astro: [
-    { label: "HOUSE", value: "宫位" },
-    { label: "ASPECT", value: "相位" },
-    { label: "TRANSIT", value: "行运" },
+  fortune: [
+    { label: "DAY", value: "今日" },
+    { label: "THEME", value: "主题" },
+    { label: "FLOW", value: "流向" },
   ],
-  palm: [
-    { label: "LINE", value: "掌纹" },
-    { label: "SHAPE", value: "手型" },
-    { label: "MARK", value: "纹记" },
+  token: [
+    { label: "CHAIN", value: "链域" },
+    { label: "HEAT", value: "热度" },
+    { label: "RISK", value: "风险" },
   ],
-  face: [
-    { label: "BONE", value: "骨相" },
-    { label: "QI", value: "气色" },
-    { label: "SPIRIT", value: "神态" },
+  worldcup: [
+    { label: "MATCH", value: "对阵" },
+    { label: "FORM", value: "状态" },
+    { label: "UPSET", value: "冷门" },
   ],
 };
 
@@ -52,13 +52,64 @@ function buildLocalReading(key: OracleKey, input: string) {
   const titleMap: Record<OracleKey, string> = {
     dream: "梦核",
     hexagram: "卦象",
-    tarot: "牌阵",
-    astro: "星象",
-    palm: "手相",
-    face: "面相",
+    stock: "股票卦",
+    fortune: "运势",
+    token: "币卦",
+    worldcup: "赛事卦",
   };
 
   return `${titleMap[key]}：${tones[index]}\n\n主线：${focus[index]}。\n提示：把问题缩小到一个动作。`;
+}
+
+function buildPaidBoundaryMessage(key: OracleKey, input: string) {
+  const normalizedInput = input.trim();
+
+  if (key === "stock") {
+    return [
+      "混沌梦核-股票：服务准备中",
+      "",
+      "股票卦象将作为独立 OKX.AI A2MCP / x402 付费服务发布；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
+      `已记录输入：${normalizedInput}`,
+      "计划能力：股票代码识别、行情趋势验卦、波动风险与娱乐观察提示。",
+      "边界声明：输出仅供娱乐与研究，不构成投资建议。",
+    ].join("\n");
+  }
+
+  if (key === "fortune") {
+    return [
+      "混沌梦核-运势：服务准备中",
+      "",
+      "个人运势卦象将作为独立 OKX.AI A2MCP / x402 付费服务发布；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
+      `已记录输入：${normalizedInput}`,
+      "计划能力：每日运势、关系/事业主题、节奏提醒与娱乐观察提示。",
+      "边界声明：输出仅供娱乐与自我观察，不构成医疗、心理咨询、法律或投资建议。",
+    ].join("\n");
+  }
+
+  if (key === "token") {
+    return [
+      "混沌梦核-币：付费调用入口",
+      "",
+      "完整链上数据验卦报告需通过 OKX.AI A2MCP / x402 付费调用生成；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
+      `已记录输入：${normalizedInput}`,
+      "API Endpoint：/api/chaos-token-oracle",
+      "请求方式：POST JSON，必填 token，可选 chain、symbol、window、metrics。",
+      "边界声明：输出仅供娱乐与研究，不构成投资建议。",
+    ].join("\n");
+  }
+
+  if (key === "worldcup") {
+    return [
+      "混沌梦核-世界杯：服务准备中",
+      "",
+      "世界杯赛事卦象将作为独立 OKX.AI A2MCP / x402 付费服务发布；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
+      `已记录输入：${normalizedInput}`,
+      "计划能力：赛事卦象、热度验卦、冷门风险与娱乐观察提示。",
+      "边界声明：输出仅供娱乐与研究，不构成投注、投资或确定性预测建议。",
+    ].join("\n");
+  }
+
+  return null;
 }
 
 export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
@@ -100,6 +151,12 @@ export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
 
         const data = await response.json();
         setResult(data.interpretation);
+        return;
+      }
+
+      const paidBoundaryMessage = buildPaidBoundaryMessage(oracle.key, input);
+      if (paidBoundaryMessage) {
+        setResult(paidBoundaryMessage);
         return;
       }
 

@@ -1,5 +1,5 @@
-import { OracleWorkspace } from "@/components/oracle/oracle-workspace";
+import { redirect } from "next/navigation";
 
 export default function TarotPage() {
-  return <OracleWorkspace oracleKey="tarot" />;
+  redirect("/stock");
 }

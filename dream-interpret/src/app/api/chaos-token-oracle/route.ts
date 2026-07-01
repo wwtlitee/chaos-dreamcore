@@ -39,18 +39,23 @@ export async function GET() {
     {
       ok: true,
       service: "chaos-token-oracle",
-      version: "1.1.0",
+      version: "1.2.0",
       endpoint: "/api/chaos-token-oracle",
       methods: ["GET", "POST"],
       description:
-        "Onchain liuyao token oracle. Provide chain, token, optional symbol/window/metrics, and receive a deterministic long-form ritual reading plus data crosscheck.",
+        "Token liuyao oracle. Provide a token name, symbol, or CA plus optional chain/window/metrics, and receive a deterministic long-form ritual reading plus market data crosscheck.",
       sampleRequest: {
+        token: "BTC",
+        window: "24h",
+        mode: "full_ritual",
+      },
+      contractSampleRequest: {
         token: "8qNbYMCozwpiQHD9yYnDiYJtsZGrfkbPuLieGVTFpump",
         window: "24h",
         mode: "full_ritual",
       },
       chainDetection:
-        "chain is optional. The service auto-detects likely solana/bsc/ethereum/base from CA and market data.",
+        "chain is optional. Symbols and names use OKX public spot market data first; CA input uses chain/onchain market data.",
       disclaimer:
         "Entertainment and research only. Not financial advice, investment advice, or a buy/sell recommendation.",
     },
@@ -81,6 +86,9 @@ async function postHandler(request: NextRequest) {
       marketContext: marketResolution.snapshot
         ? {
             source: marketResolution.snapshot.source,
+            instId: marketResolution.snapshot.instId,
+            baseCcy: marketResolution.snapshot.baseCcy,
+            quoteCcy: marketResolution.snapshot.quoteCcy,
             priceUsd: marketResolution.snapshot.priceUsd,
             priceChange24H: marketResolution.snapshot.priceChange24H,
             volume24H: marketResolution.snapshot.volume24H,
@@ -127,7 +135,7 @@ export const POST = withX402<unknown>(
       payTo: chaosTokenOraclePayTo,
       maxTimeoutSeconds: 60,
     },
-    description: "混沌梦核-币：输入代币 CA，生成链上数据校验后的长篇代币卦象报告。",
+    description: "混沌梦核-币：输入代币名称、符号或 CA，生成行情/链上数据校验后的长篇代币卦象报告。",
   },
   x402Server,
 );

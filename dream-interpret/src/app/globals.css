@@ -2312,7 +2312,7 @@
 }
 
 .oracle-stage-grid {
-  align-items: stretch;
+  align-items: start;
 }
 
 .oracle-input-panel {

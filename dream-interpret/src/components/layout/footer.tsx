@@ -4,11 +4,15 @@ import { Brain, MoonStar } from "lucide-react";
 
 const footerLinks = [
   { href: "/dream", label: "梦境解析" },
+  { href: "/fortune", label: "运势卦象" },
+  { href: "/stock", label: "股票卦象" },
+  { href: "/token", label: "代币卦象" },
+  { href: "/worldcup", label: "世界杯赛事" },
   { href: "/knowledge", label: "玄学知识库" },
   { href: "/payment", label: "付费方案" },
 ];
 
-const modules = ["每日一卦", "塔罗牌阵", "星座星盘", "手相识别", "面相观察"];
+const modules = ["每日一卦", "运势卦象", "股票卦象", "代币卦象", "世界杯赛事"];
 
 export function Footer() {
   return (
@@ -25,7 +29,7 @@ export function Footer() {
               </span>
             </div>
             <p className="max-w-xs text-sm leading-6 text-white/52">
-              以梦境为主轴，把卦象、塔罗、星座、手相、面相汇入同一份梦核综合报告。
+              以梦境为主轴，把卦象、运势、股票、代币与赛事信号汇入同一份梦核综合报告。
             </p>
           </div>
 
@@ -63,7 +67,7 @@ export function Footer() {
             <Brain className="size-5 text-orange-200" />
             <h4 className="mt-4 text-lg font-normal text-white">边界说明</h4>
             <p className="mt-2 text-sm leading-6 text-white/54">
-              玄学解析用于娱乐、灵感整理与自我观察，不替代医疗、心理咨询、法律或投资建议。
+              玄学解析用于娱乐、灵感整理与自我观察，不替代医疗、心理咨询、法律、投资或投注建议。
             </p>
           </div>
         </div>

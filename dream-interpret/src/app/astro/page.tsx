@@ -1,5 +1,5 @@
-import { OracleWorkspace } from "@/components/oracle/oracle-workspace";
+import { redirect } from "next/navigation";
 
 export default function AstroPage() {
-  return <OracleWorkspace oracleKey="astro" />;
+  redirect("/fortune");
 }

@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "混沌梦核 - AI玄学融合解析系统",
   description:
-    "混沌梦核融合梦境解析、每日一卦、塔罗、星座、手相与面相，生成多维度梦核综合报告。",
-  keywords: ["混沌梦核", "AI玄学", "解梦", "每日一卦", "塔罗", "星座", "手相", "面相"],
+    "混沌梦核融合梦境解析、每日一卦、运势、股票、代币卦象与世界杯赛事卦象，生成多维度梦核综合报告。",
+  keywords: ["混沌梦核", "AI玄学", "解梦", "每日一卦", "运势", "股票卦象", "代币卦象", "世界杯"],
 };
 
 export default function RootLayout({

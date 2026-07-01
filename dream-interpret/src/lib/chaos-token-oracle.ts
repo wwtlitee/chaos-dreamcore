@@ -16,6 +16,9 @@ export interface TokenMarketMetrics {
 
 export interface TokenMarketContext {
   source?: string;
+  instId?: string;
+  baseCcy?: string;
+  quoteCcy?: string;
   priceUsd?: number;
   priceChange24H?: number;
   volume24H?: number;
@@ -47,7 +50,7 @@ export interface ChaosTokenOracleRequest {
 export interface ChaosTokenOracleResponse {
   ok: true;
   service: "chaos-token-oracle";
-  version: "1.1.0";
+  version: "1.2.0";
   mode: ChaosOracleMode;
   token: {
     chain: string;
@@ -305,7 +308,7 @@ export function buildChaosTokenOracle(input: ChaosTokenOracleRequest): ChaosToke
   return {
     ok: true,
     service: "chaos-token-oracle",
-    version: "1.1.0",
+    version: "1.2.0",
     mode: normalized.mode,
     token: {
       chain: normalized.chain,
@@ -385,6 +388,9 @@ function sanitizeMarketContext(context?: TokenMarketContext): TokenMarketContext
   if (!context) return undefined;
   return {
     source: cleanText(context.source),
+    instId: cleanText(context.instId),
+    baseCcy: cleanText(context.baseCcy),
+    quoteCcy: cleanText(context.quoteCcy),
     priceUsd: finite(context.priceUsd),
     priceChange24H: finite(context.priceChange24H),
     volume24H: finite(context.volume24H),
@@ -930,10 +936,11 @@ function buildChangingLinesSection(context: LongReadingContext): string {
 
 function buildMarketContextText(context?: TokenMarketContext): string {
   if (!context?.source) {
-    return "链上数据源：未取得可用市场快照，本次只能按输入指标和卦象低置信度判断。";
+    return "市场数据源：未取得可用行情或链上快照，本次只能按输入指标和卦象低置信度判断。";
   }
 
   const facts = [
+    context.instId ? `交易对 ${context.instId}` : "",
     metricSentence("价格", context.priceUsd, " USD"),
     metricSentence("24h 涨跌", context.priceChange24H, "%"),
     metricSentence("24h 成交量", context.volume24H, " USD"),
@@ -951,9 +958,15 @@ function buildMarketContextText(context?: TokenMarketContext): string {
         : "";
   const tags = context.tokenTags?.length ? `链上标签：${context.tokenTags.join("、")}。` : "";
   const pair = context.pairUrl ? `参考交易对：${context.pairUrl}` : "";
+  const sourceLabel =
+    context.source === "okx_public"
+      ? "OKX 公开行情"
+      : context.source === "binance_public"
+        ? "Binance 公开行情"
+        : `链上数据源 ${context.source}`;
 
   return [
-    `链上数据源：${context.source}。${facts.length ? `快照显示 ${facts.join("；")}。` : "数据源可识别 token，但可用数值有限。"}`,
+    `市场数据源：${sourceLabel}。${facts.length ? `快照显示 ${facts.join("；")}。` : "数据源可识别 token，但可用数值有限。"}`,
     recognition,
     tags,
     pair,
