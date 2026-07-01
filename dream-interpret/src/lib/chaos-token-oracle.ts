@@ -14,8 +14,26 @@ export interface TokenMarketMetrics {
   securityFlags?: string[];
 }
 
+export interface TokenMarketContext {
+  source?: string;
+  priceUsd?: number;
+  priceChange24H?: number;
+  volume24H?: number;
+  liquidityUsd?: number;
+  marketCapUsd?: number;
+  holders?: number;
+  txs24H?: number;
+  buys24H?: number;
+  sells24H?: number;
+  topHolderConcentrationPct?: number;
+  communityRecognized?: boolean;
+  tokenTags?: string[];
+  pairUrl?: string;
+  riskFlags?: string[];
+}
+
 export interface ChaosTokenOracleRequest {
-  chain: string;
+  chain?: string;
   token: string;
   symbol?: string;
   window?: string;
@@ -23,12 +41,13 @@ export interface ChaosTokenOracleRequest {
   question?: string;
   observedAt?: string;
   metrics?: TokenMarketMetrics;
+  marketContext?: TokenMarketContext;
 }
 
 export interface ChaosTokenOracleResponse {
   ok: true;
   service: "chaos-token-oracle";
-  version: "1.0.0";
+  version: "1.1.0";
   mode: ChaosOracleMode;
   token: {
     chain: string;
@@ -50,6 +69,20 @@ export interface ChaosTokenOracleResponse {
     omenLevel: "great_omen" | "favorable" | "mixed" | "warning" | "danger";
     plain: string;
     tokenInterpretation: string;
+    longReading: {
+      summary: string;
+      sections: {
+        opening: string;
+        mainHexagram: string;
+        changingLines: string;
+        transformedHexagram: string;
+        dataVerification: string;
+        timing: string;
+        cautions: string;
+        closing: string;
+      };
+      fullText: string;
+    };
     watch: string[];
   };
   dataCrosscheck: {
@@ -84,6 +117,32 @@ interface ChangingLineReading {
   line: number;
   polarity: "yin" | "yang";
   message: string;
+}
+
+interface LineState {
+  line: number;
+  polarity: "yin" | "yang";
+  isChanging: boolean;
+}
+
+interface LongReadingContext {
+  symbol: string;
+  question: string;
+  hexagram: HexagramReading;
+  transformedHexagram: HexagramReading;
+  changingLines: ChangingLineReading[];
+  lineStates: LineState[];
+  hypePhase: HypePhase;
+  riskLevel: RiskLevel;
+  riskScore: number;
+  smartMoneySignal: SmartMoneySignal;
+  confidence: "low" | "medium" | "high";
+  liquidityOmen: string;
+  matchReading: string;
+  redFlags: string[];
+  metrics: TokenMarketMetrics;
+  marketContext?: TokenMarketContext;
+  watchConditions: string[];
 }
 
 interface Trigram {
@@ -219,11 +278,34 @@ export function buildChaosTokenOracle(input: ChaosTokenOracleRequest): ChaosToke
   const redFlags = collectRedFlags(metrics, riskScore);
   const omenLevel = classifyOmenLevel(riskLevel, hypePhase, hexagram);
   const watchConditions = buildWatchConditions(metrics, hypePhase, riskLevel, changingLines);
+  const longReading = buildLongReading({
+    symbol: normalized.symbol,
+    question: normalized.question,
+    hexagram,
+    transformedHexagram,
+    changingLines,
+    lineStates: lineRolls.map((roll) => ({
+      line: roll.line,
+      polarity: roll.isYang ? "yang" : "yin",
+      isChanging: roll.isChanging,
+    })),
+    hypePhase,
+    riskLevel,
+    riskScore,
+    smartMoneySignal,
+    confidence,
+    liquidityOmen: buildLiquidityOmen(metrics),
+    matchReading: buildMatchReading(hexagram, hypePhase, riskLevel, confidence),
+    redFlags,
+    metrics,
+    marketContext: normalized.marketContext,
+    watchConditions,
+  });
 
   return {
     ok: true,
     service: "chaos-token-oracle",
-    version: "1.0.0",
+    version: "1.1.0",
     mode: normalized.mode,
     token: {
       chain: normalized.chain,
@@ -245,6 +327,7 @@ export function buildChaosTokenOracle(input: ChaosTokenOracleRequest): ChaosToke
       omenLevel,
       plain: buildPlainReading(hexagram, transformedHexagram, hypePhase, riskLevel),
       tokenInterpretation: buildTokenInterpretation(normalized.symbol, hypePhase, smartMoneySignal, riskLevel),
+      longReading,
       watch: normalized.mode === "quick_omen" ? watchConditions.slice(0, 3) : watchConditions,
     },
     dataCrosscheck: {
@@ -262,7 +345,7 @@ export function buildChaosTokenOracle(input: ChaosTokenOracleRequest): ChaosToke
 }
 
 function normalizeInput(input: ChaosTokenOracleRequest) {
-  const chain = cleanText(input.chain).toLowerCase();
+  const chain = cleanText(input.chain || "unknown").toLowerCase();
   const token = cleanText(input.token);
   const symbol = cleanText(input.symbol || token).slice(0, 24).toUpperCase();
 
@@ -275,6 +358,7 @@ function normalizeInput(input: ChaosTokenOracleRequest) {
     question: cleanText(input.question || ""),
     observedAt: input.observedAt || new Date().toISOString(),
     metrics: sanitizeMetrics(input.metrics),
+    marketContext: sanitizeMarketContext(input.marketContext),
   };
 }
 
@@ -294,6 +378,27 @@ function sanitizeMetrics(metrics?: TokenMarketMetrics): TokenMarketMetrics | und
     securityFlags: Array.isArray(metrics.securityFlags)
       ? metrics.securityFlags.map(cleanText).filter(Boolean).slice(0, 8)
       : [],
+  };
+}
+
+function sanitizeMarketContext(context?: TokenMarketContext): TokenMarketContext | undefined {
+  if (!context) return undefined;
+  return {
+    source: cleanText(context.source),
+    priceUsd: finite(context.priceUsd),
+    priceChange24H: finite(context.priceChange24H),
+    volume24H: finite(context.volume24H),
+    liquidityUsd: finite(context.liquidityUsd),
+    marketCapUsd: finite(context.marketCapUsd),
+    holders: finite(context.holders),
+    txs24H: finite(context.txs24H),
+    buys24H: finite(context.buys24H),
+    sells24H: finite(context.sells24H),
+    topHolderConcentrationPct: finite(context.topHolderConcentrationPct),
+    communityRecognized: typeof context.communityRecognized === "boolean" ? context.communityRecognized : undefined,
+    tokenTags: Array.isArray(context.tokenTags) ? context.tokenTags.map(cleanText).filter(Boolean).slice(0, 10) : [],
+    pairUrl: cleanText(context.pairUrl),
+    riskFlags: Array.isArray(context.riskFlags) ? context.riskFlags.map(cleanText).filter(Boolean).slice(0, 12) : [],
   };
 }
 
@@ -429,6 +534,7 @@ function classifyHypePhase(metrics: TokenMarketMetrics): HypePhase {
   if (price > 20 && volume > 120 && holders > 5 && buySell >= 1.1) return "expansion";
   if (price > 5 && volume > 40 && holders > 1) return "ignition";
   if (price > 35 && volume > 150 && (holders <= 2 || buySell < 1)) return "saturation";
+  if (price < -15) return "decay";
   if ((price < -8 && volume > 40) || liquidity < -10 || buySell < 0.75) return "decay";
   if (price < -25 && volume < -20 && holders < -3) return "afterlife";
   return "unknown";
@@ -490,10 +596,12 @@ function classifyConfidence(metrics: TokenMarketMetrics): "low" | "medium" | "hi
     metrics.whaleNetFlow,
     metrics.topHolderConcentrationPct,
     metrics.liquidityUsd,
+    metrics.marketCapUsd,
   ].filter((value) => value !== undefined).length;
+  const flagWeight = (metrics.securityFlags?.length ?? 0) > 0 ? 1 : 0;
 
-  if (present >= 7) return "high";
-  if (present >= 4) return "medium";
+  if (present + flagWeight >= 7) return "high";
+  if (present + flagWeight >= 4) return "medium";
   return "low";
 }
 
@@ -559,6 +667,581 @@ function buildTokenInterpretation(
   )}。若卦意偏顺但数据不确认，应按数据优先处理。`;
 }
 
+function buildLongReading(context: LongReadingContext): ChaosTokenOracleResponse["oracleReading"]["longReading"] {
+  const questionText = context.question ? `问事：${context.question}` : `问事：观 ${context.symbol} 近势`;
+  const auspicious = buildAuspiciousLabel(context.riskLevel, context.hypePhase, context.confidence);
+  const fiveElement = buildFiveElementText(context.hexagram, context.riskLevel, context.hypePhase);
+  const glyph = `${hexagramGlyph(context.hexagram.code.slice(0, 3))}${hexagramGlyph(context.hexagram.code.slice(3, 6))}`;
+  const changedGlyph = `${hexagramGlyph(context.transformedHexagram.code.slice(0, 3))}${hexagramGlyph(
+    context.transformedHexagram.code.slice(3, 6),
+  )}`;
+
+  const sections = {
+    opening: [
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      `         ${context.symbol} · 混沌第一卦`,
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      `  卦象：${context.hexagram.name}（${glyph}）· 变卦：${context.transformedHexagram.name}（${changedGlyph}）`,
+      `  五行属性：${fiveElement}`,
+      `  吉凶等级：${auspicious.stars} ${auspicious.label}`,
+      `  链上验卦：${confidenceText(context.confidence)}置信 · ${phaseText(context.hypePhase)} · 风险${riskText(
+        context.riskLevel,
+      )}（${context.riskScore}/100）`,
+      "",
+      `  总判：${buildOverallJudgement(context)}`,
+      "",
+      `  ${questionText}`,
+    ].join("\n"),
+    mainHexagram: [
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "              卦 辞",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      buildOracleProse(context),
+      "",
+      buildMarketContextText(context.marketContext),
+      context.liquidityOmen,
+    ].join("\n"),
+    changingLines: buildChangingLinesSection(context),
+    transformedHexagram: [
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "              变 卦",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      buildTransformationProse(context),
+    ].join("\n"),
+    dataVerification: [
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "              验 卦",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      `数据断语：${context.matchReading}`,
+      `聪明钱象：${smartMoneyText(context.smartMoneySignal)}。`,
+      buildMetricsEvidence(context.metrics),
+      buildRedFlagText(context.redFlags),
+    ].join("\n"),
+    timing: buildActionGuideSection(context),
+    cautions: buildCautionSection(context.riskLevel, context.confidence, context.watchConditions),
+    closing: [
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "              封 卦",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      "  诗曰：",
+      "",
+      ...buildClosingPoem(context).map((line) => `    ${line}`),
+      "",
+      `  此卦已成，${context.symbol} 之势不在一念贪嗔，`,
+      "  而在链上证据、风险纪律与认知边界。",
+      "  信则图一乐，不信亦无妨；币市有风险，卦辞不作交易令。",
+      "",
+      "              ——卦师梦核 · 封卦",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    ].join("\n"),
+  };
+
+  const summary = `${context.symbol} 起得 ${context.hexagram.name}，变 ${context.transformedHexagram.name}，${auspicious.label}。总象为${phaseText(
+    context.hypePhase,
+  )}，风险${riskText(context.riskLevel)}，置信度${confidenceText(context.confidence)}。`;
+
+  return {
+    summary,
+    sections,
+    fullText: [
+      sections.opening,
+      "",
+      sections.mainHexagram,
+      "",
+      sections.changingLines,
+      "",
+      sections.transformedHexagram,
+      "",
+      sections.dataVerification,
+      "",
+      sections.timing,
+      "",
+      sections.cautions,
+      "",
+      sections.closing,
+    ].join("\n"),
+  };
+}
+
+function buildHexagramTemper(hexagram: HexagramReading): string {
+  if (/晋|升|益|泰|大有|丰/.test(hexagram.name)) {
+    return "此类卦象偏向上行、聚势、增益，但最怕虚火。若只有热闹没有承接，吉象会转成诱象。";
+  }
+  if (/坎|困|剥|蹇|否|蛊|遁/.test(hexagram.name)) {
+    return "此类卦象先看风险，后看机会。它提醒的是阻滞、暗伤或退出难度，不能只拿短线涨幅来抵消。";
+  }
+  if (/井|恒|渐|谦|观/.test(hexagram.name)) {
+    return "此类卦象偏向蓄势、观察和渐进，不宜用暴涨暴跌的眼光读它，重点在结构是否持续变好。";
+  }
+  return "此卦不宜单向解读，应同时观察热度、承接、筹码和叙事是否一致。";
+}
+
+function buildAuspiciousLabel(
+  riskLevel: RiskLevel,
+  hypePhase: HypePhase,
+  confidence: "low" | "medium" | "high",
+): { label: string; stars: string } {
+  if (riskLevel === "critical") return { label: "大凶", stars: "★☆☆☆☆" };
+  if (riskLevel === "high") return { label: "小凶", stars: "★★☆☆☆" };
+  if (hypePhase === "decay" || hypePhase === "afterlife") return { label: "凶中带观", stars: "★★☆☆☆" };
+  if (confidence === "low") return { label: "平", stars: "★★★☆☆" };
+  if (hypePhase === "ignition" || hypePhase === "expansion") return { label: "小吉", stars: "★★★★☆" };
+  return { label: "平中有变", stars: "★★★☆☆" };
+}
+
+function buildFiveElementText(hexagram: HexagramReading, riskLevel: RiskLevel, hypePhase: HypePhase): string {
+  const element = toFiveElement(hexagram.element.split("/")[0] || "土");
+  const relation =
+    riskLevel === "critical"
+      ? "遇水则困，逢火反噬"
+      : hypePhase === "ignition" || hypePhase === "expansion"
+        ? "得木则生，遇金则鸣"
+        : "喜静不喜躁，忌风大火虚";
+  return `属${element}，${relation}`;
+}
+
+function toFiveElement(value: string): string {
+  const map: Record<string, string> = {
+    金: "金",
+    泽: "金",
+    火: "火",
+    雷: "木",
+    风: "木",
+    水: "水",
+    山: "土",
+    地: "土",
+  };
+  return map[value] ?? "土";
+}
+
+function hexagramGlyph(bits: string): string {
+  const glyphs: Record<string, string> = {
+    "111": "☰",
+    "110": "☱",
+    "101": "☲",
+    "100": "☳",
+    "011": "☴",
+    "010": "☵",
+    "001": "☶",
+    "000": "☷",
+  };
+  return glyphs[bits] ?? "☷";
+}
+
+function buildOverallJudgement(context: LongReadingContext): string {
+  if (context.riskLevel === "critical") {
+    return "卦有其象，险在链上；宜先观池水深浅，忌听鼓噪而追风。";
+  }
+  if (context.hypePhase === "decay" || context.hypePhase === "afterlife") {
+    return "余火尚存，退潮已显；宜看承接，忌把反抽当新生。";
+  }
+  if (context.hypePhase === "ignition" || context.hypePhase === "expansion") {
+    return "火候初成，人气渐聚；宜验真量，忌一念梭哈。";
+  }
+  return "象在雾中，数未全明；宜补链上证据，忌凭一句卦辞定生死。";
+}
+
+function buildOracleProse(context: LongReadingContext): string {
+  const change =
+    context.hexagram.number === context.transformedHexagram.number
+      ? `变卦仍守${context.transformedHexagram.name}，主局未脱旧势。`
+      : `变为${context.transformedHexagram.name}，主后势另开一门。`;
+  const marketMood =
+    context.riskLevel === "critical"
+      ? "池浅浪急，筹码如悬石；一声喊单，未必托得住出逃之人。"
+      : context.hypePhase === "decay"
+        ? "热意退而余温在，盘面像风后残烛，亮处仍亮，暗处已暗。"
+        : context.hypePhase === "ignition" || context.hypePhase === "expansion"
+          ? "人气有聚，火星入草，若有真量续上，方能从故事走成趋势。"
+          : "云气未开，灯火未明，链上有声无声之间，最怕自作多情。";
+
+  return [
+    `  ${context.hexagram.name}者，${context.hexagram.meaning}`,
+    `  上${context.hexagram.upper}，下${context.hexagram.lower}，${buildHexagramTemper(context.hexagram)}`,
+    "",
+    `  落到 ${context.symbol}，此卦不单问涨跌，乃问气数、承接、人心与退路。`,
+    `  ${marketMood}`,
+    "",
+    `  本卦看当下，${change}`,
+    `  若链上数据与卦象同声，则为有根之象；若数据逆卦而行，则卦辞只作提醒，不作凭据。`,
+  ].join("\n");
+}
+
+function buildChangingLinesSection(context: LongReadingContext): string {
+  const dimensions = [
+    {
+      title: "初爻 · 财运",
+      map: "池子深浅 / 市值根基",
+      text: buildFoundationLine(context),
+    },
+    {
+      title: "二爻 · 时运",
+      map: "价格动能 / 24h 走势",
+      text: buildMomentumLine(context),
+    },
+    {
+      title: "三爻 · 人气",
+      map: "持有人 / 交易活跃",
+      text: buildPopularityLine(context),
+    },
+    {
+      title: "四爻 · 贵人",
+      map: "催化 / 聪明钱 / 标签",
+      text: buildCatalystLine(context),
+    },
+    {
+      title: "五爻 · 小人",
+      map: "集中度 / 流动性 / 红旗",
+      text: buildVillainLine(context),
+    },
+    {
+      title: "上爻 · 天命",
+      map: "大环境 / 阶段位置",
+      text: buildMacroLine(context),
+    },
+  ];
+
+  const header = [
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "            六 爻 详 解",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  ].join("\n");
+  const lines = dimensions.map((dimension, index) => {
+      const state = context.lineStates[index] ?? { line: index + 1, polarity: "yin" as const, isChanging: false };
+      const mark = state.isChanging ? "△" : state.polarity === "yang" ? "✓" : "✗";
+      const lineState = state.isChanging ? "变爻" : state.polarity === "yang" ? "阳爻" : "阴爻";
+      return [
+        `【${dimension.title}】`,
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        `  判词：${dimension.text.verdict}`,
+        "",
+        `  ${dimension.text.body}`,
+        "",
+        `  此爻为${lineState}，${dimension.text.closing} ${mark}`,
+      ].join("\n");
+    });
+  return [header, ...lines].join("\n\n");
+}
+
+function buildMarketContextText(context?: TokenMarketContext): string {
+  if (!context?.source) {
+    return "链上数据源：未取得可用市场快照，本次只能按输入指标和卦象低置信度判断。";
+  }
+
+  const facts = [
+    metricSentence("价格", context.priceUsd, " USD"),
+    metricSentence("24h 涨跌", context.priceChange24H, "%"),
+    metricSentence("24h 成交量", context.volume24H, " USD"),
+    metricSentence("流动性", context.liquidityUsd, " USD"),
+    metricSentence("市值", context.marketCapUsd, " USD"),
+    metricSentence("持有人", context.holders, ""),
+    metricSentence("24h 交易数", context.txs24H, ""),
+    metricSentence("Top 持仓集中度", context.topHolderConcentrationPct, "%"),
+  ].filter(Boolean);
+  const recognition =
+    context.communityRecognized === false
+      ? "该 token 未被 community-recognized，名称和符号不可作为信任依据。"
+      : context.communityRecognized === true
+        ? "该 token 有 community-recognized 标记，但这不等于安全背书。"
+        : "";
+  const tags = context.tokenTags?.length ? `链上标签：${context.tokenTags.join("、")}。` : "";
+  const pair = context.pairUrl ? `参考交易对：${context.pairUrl}` : "";
+
+  return [
+    `链上数据源：${context.source}。${facts.length ? `快照显示 ${facts.join("；")}。` : "数据源可识别 token，但可用数值有限。"}`,
+    recognition,
+    tags,
+    pair,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildFoundationLine(context: LongReadingContext) {
+  const liquidity = context.marketContext?.liquidityUsd ?? context.metrics.liquidityUsd;
+  const marketCap = context.marketContext?.marketCapUsd ?? context.metrics.marketCapUsd;
+  const verdict =
+    liquidity !== undefined && liquidity < 10000
+      ? "财帛宫浅，池水难藏大鱼。"
+      : liquidity !== undefined && liquidity > 1_000_000
+        ? "财帛宫有库，根气尚能承压。"
+        : "财帛宫未明，需看池水与市值是否相称。";
+  const body = [
+    liquidity !== undefined
+      ? `当前流动性约 ${formatMetricValue(liquidity, " USD")} USD，池水深浅已入卦。`
+      : "当前未取到明确流动性，财帛一宫只能低声断。", 
+    marketCap !== undefined ? `市值约 ${formatMetricValue(marketCap, " USD")} USD，盘子大小决定风吹时的晃动幅度。` : "",
+    liquidity !== undefined && liquidity < 10000
+      ? "池浅则滑点重，喊声再响，也可能一脚踩空。"
+      : "若池水不退，基本承接尚可继续观察。",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { verdict, body, closing: liquidity !== undefined && liquidity < 10000 ? "根浅须慎" : "根气待验" };
+}
+
+function buildMomentumLine(context: LongReadingContext) {
+  const change = context.marketContext?.priceChange24H ?? context.metrics.priceChangePct;
+  const volume = context.marketContext?.volume24H;
+  const verdict =
+    change === undefined
+      ? "时运未开，涨跌无凭。"
+      : change < -15
+        ? "时运转冷，退潮有声。"
+        : change > 15
+          ? "时运上扬，火势见明。"
+          : "时运平平，仍在试探。";
+  const body = [
+    change !== undefined
+      ? `24h 涨跌为 ${formatMetricValue(change, "%")}%，此数直接入时运。`
+      : "未取得 24h 价格变化，K 线之象未全。",
+    volume !== undefined ? `24h 成交量约 ${formatMetricValue(volume, " USD")} USD，可看热闹是否真有脚步声。` : "",
+    change !== undefined && change < -15
+      ? "跌幅已深，若无新增承接，反弹也多半是惊弓之鸟。"
+      : "若后续价量同向，时运才算转实。",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { verdict, body, closing: change !== undefined && change < -15 ? "临退潮之象" : "临待发之象" };
+}
+
+function buildPopularityLine(context: LongReadingContext) {
+  const holders = context.marketContext?.holders;
+  const txs = context.marketContext?.txs24H;
+  const verdict =
+    holders !== undefined && holders < 50
+      ? "人气未聚，堂前少客。"
+      : holders !== undefined && holders > 1000
+        ? "人气已成，市声渐盛。"
+        : "人气有影，尚未成潮。";
+  const body = [
+    holders !== undefined ? `持有人约 ${holders}，这是人气宫的底数。` : "未取得持有人数量，人气只能看影不看形。",
+    txs !== undefined ? `24h 交易数约 ${txs}，可见散户脚步是否频繁。` : "",
+    holders !== undefined && holders < 50
+      ? "人少则盘轻，也易被少数地址牵动；热闹未必是共识，可能只是几人击鼓。"
+      : "若持有人继续增长，社区之火才有续燃可能。",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { verdict, body, closing: holders !== undefined && holders < 50 ? "人气偏虚" : "人气待聚" };
+}
+
+function buildCatalystLine(context: LongReadingContext) {
+  const tags = context.marketContext?.tokenTags ?? [];
+  const smartMoneyTag = tags.some((tag) => /smart/i.test(tag));
+  const verdict = smartMoneyTag ? "贵人星动，暗手曾临。" : "贵人未现，催化待来。";
+  const body = [
+    tags.length ? `链上标签见 ${tags.join("、")}，可作贵人宫旁证。` : "暂未取得明显利好标签，贵人宫无强光。",
+    smartMoneyTag
+      ? "有聪明钱相关痕迹，但聪明钱不是护身符；若它只来试水，不续买盘，则贵人也会转身。"
+      : "若后续出现真实买盘、迁移、上池或叙事扩散，方可说贵人入局。",
+  ].join(" ");
+  return { verdict, body, closing: smartMoneyTag ? "有贵人而需验真" : "贵人未至" };
+}
+
+function buildVillainLine(context: LongReadingContext) {
+  const concentration = context.marketContext?.topHolderConcentrationPct ?? context.metrics.topHolderConcentrationPct;
+  const flags = context.redFlags;
+  const verdict =
+    context.riskLevel === "critical"
+      ? "小人当道，不可不防。"
+      : flags.length
+        ? "暗处有刺，须防回马。"
+        : "小人未显，仍需巡夜。";
+  const body = [
+    concentration !== undefined ? `头部持仓集中度约 ${formatMetricValue(concentration, "%")}%，筹码宫已露形。` : "",
+    flags.length ? `红旗见 ${flags.slice(0, 6).join("、")}。` : "当前未见明确红旗，但无旗不等于无险。",
+    concentration !== undefined && concentration > 90
+      ? "此为筹码悬顶之象，一人动念，全盘皆惊。"
+      : "若集中度下降、池水加深，小人宫才有缓和。",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { verdict, body, closing: context.riskLevel === "critical" ? "凶象压卦" : "暗伏须察" };
+}
+
+function buildMacroLine(context: LongReadingContext) {
+  const verdict =
+    context.hypePhase === "decay" || context.hypePhase === "afterlife"
+      ? "天时转冷，逆风行舟。"
+      : context.hypePhase === "ignition" || context.hypePhase === "expansion"
+        ? "天时有火，顺风未满。"
+        : "天命未判，须等风来。";
+  const body = [
+    `当前阶段为${phaseText(context.hypePhase)}，大环境在卦中表现为“${context.transformedHexagram.meaning}”。`,
+    context.confidence === "low"
+      ? "数据不足时，天命不可强说；强说便是自欺。"
+      : "已有链上数据作证，但币市风云多变，仍需滚动复盘。",
+  ].join(" ");
+  return { verdict, body, closing: context.hypePhase === "decay" ? "逆风须避" : "顺逆未定" };
+}
+
+function buildMetricsEvidence(metrics: TokenMarketMetrics): string {
+  const evidence = [
+    metricSentence("价格变化", metrics.priceChangePct, "%"),
+    metricSentence("成交量变化", metrics.volumeChangePct, "%"),
+    metricSentence("流动性变化", metrics.liquidityChangePct, "%"),
+    metricSentence("持有人变化", metrics.holderChangePct, "%"),
+    metricSentence("买卖比", metrics.buySellRatio, ""),
+    metricSentence("聪明钱净流", metrics.smartMoneyNetFlow, ""),
+    metricSentence("巨鲸净流", metrics.whaleNetFlow, ""),
+    metricSentence("头部持仓集中度", metrics.topHolderConcentrationPct, "%"),
+    metricSentence("流动性规模", metrics.liquidityUsd, " USD"),
+  ].filter(Boolean);
+
+  if (evidence.length === 0) {
+    return "本次没有提供具体行情和链上 metrics，所以只能先按卦象读势，不能把它当成已被数据确认的判断。";
+  }
+
+  return `可用指标：${evidence.join("；")}。这些指标用于验卦，不用于直接给交易指令。`;
+}
+
+function metricSentence(label: string, value: number | undefined, unit: string): string | null {
+  if (value === undefined) return null;
+  return `${label} ${formatMetricValue(value, unit)}${unit}`;
+}
+
+function formatMetricValue(value: number, unit: string): string {
+  const abs = Math.abs(value);
+  if (unit === " USD" && abs > 0 && abs < 0.01) return value.toPrecision(4);
+  if (unit === "" && Number.isInteger(value)) return String(value);
+  if (abs >= 1000) return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (abs > 0 && abs < 0.01) return value.toPrecision(4);
+  return String(Math.round(value * 100) / 100);
+}
+
+function buildRedFlagText(redFlags: string[]): string {
+  if (redFlags.length === 0) return "红旗：暂未从输入指标中读到明确红旗，但这不等于无风险。";
+  return `红旗：${redFlags.join("、")}。红旗出现时，所有吉象都要降权。`;
+}
+
+function buildTransformationProse(context: LongReadingContext): string {
+  const same = context.hexagram.number === context.transformedHexagram.number;
+  const movement = same
+    ? `本卦不变，仍守${context.hexagram.name}。不变不是无事，而是旧局未破，旧债未清。`
+    : `本卦${context.hexagram.name}，变卦${context.transformedHexagram.name}。前者看当下之气，后者看下一步之门。`;
+  const warning =
+    context.riskLevel === "critical"
+      ? "然链上凶数甚重，变卦纵有生机，也须先过流动性与筹码两关。"
+      : context.hypePhase === "decay"
+        ? "热度已有回落，变卦若要成吉，需见真量回补，不可只靠群内喊声。"
+        : "若后续数据顺卦而行，则为势起；若数据背卦而走，则为虚象。";
+
+  return [
+    `  ${movement}`,
+    `  ${context.transformedHexagram.name}主“${context.transformedHexagram.meaning}”。${warning}`,
+    "  变卦不是预测价格，而是指出局势可能转向的门缝。门能不能开，要看链上脚步有没有跟上。",
+  ].join("\n");
+}
+
+function buildTimingSection(hypePhase: HypePhase, changingLines: ChangingLineReading[]): string {
+  const hasUpperMove = changingLines.some((line) => line.line >= 5);
+  const timingHint = hasUpperMove
+    ? "动在五爻或上爻，说明变化可能已经接近主导层或阶段尾部，应期偏短，重点看接下来一个窗口是否快速验证。"
+    : "动爻未明显落在高位，说明变化未必立刻兑现，应期更适合按后续 1 到 3 个观察窗口复核。";
+  const phaseHint =
+    hypePhase === "ignition"
+      ? "初燃之象看连续性，不看单次冲高。"
+      : hypePhase === "saturation"
+        ? "盛极之象看退潮信号，一旦量增价滞就要重新断卦。"
+        : hypePhase === "unknown"
+          ? "未明之象先补数据，缺少价格、量能、流动性和地址行为时，不宜硬断。"
+          : "此阶段重点看当前趋势是否被下一组链上数据确认。";
+
+  return `五、应期与观察窗口：${timingHint}${phaseHint}`;
+}
+
+function buildActionGuideSection(context: LongReadingContext): string {
+  const timing = buildTimingSection(context.hypePhase, context.changingLines).replace("五、应期与观察窗口：", "");
+  const posture =
+    context.riskLevel === "critical"
+      ? "以避险为主，先看池水、集中度与红旗是否缓和；凶数未解，不宜被短线火光迷眼。"
+      : context.hypePhase === "ignition" || context.hypePhase === "expansion"
+        ? "以验证为主，观察价量、人气、流动性是否同向；一项独亮，不足成局。"
+        : "以观望复盘为主，等下一组链上数据给出方向。";
+  const entry = context.riskLevel === "critical" ? "不设入场号令，只设观察门槛。" : "若要研究，只看确认，不看冲动。";
+  const taboo = [
+    "忌听群内一句喊单便满仓梭哈。",
+    "忌只看卦面吉字，不看池子深浅。",
+    "忌把低流动性反抽当成趋势反转。",
+  ];
+
+  return [
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "            行 动 指 南",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    "  【观察姿态】",
+    `  ${posture}`,
+    "",
+    "  【进退时机】",
+    `  ${entry} 若 24h 交易、流动性、持有人与头部筹码同时改善，方可说卦象开始应验；若量增价滞、池水变浅、红旗增多，则按凶象处理。`,
+    "",
+    "  【应期】",
+    `  ${timing}`,
+    "",
+    "  【禁忌】",
+    ...taboo.map((item) => `  ✗ ${item}`),
+    "",
+    "  【玄学加成】",
+    `  此币五行${buildFiveElementText(context.hexagram, context.riskLevel, context.hypePhase)}。火旺则情绪易燃，水重则流动受困；凡见热闹，先问池深。`,
+  ].join("\n");
+}
+
+function buildCautionSection(
+  riskLevel: RiskLevel,
+  confidence: "low" | "medium" | "high",
+  watchConditions: string[],
+): string {
+  const riskHint =
+    riskLevel === "critical" || riskLevel === "high"
+      ? "此课风险权重大，必须先看安全、流动性和退出条件。"
+      : "此课风险暂未压过卦象，但仍需要后续数据确认。";
+  const confidenceHint =
+    confidence === "low"
+      ? "本次置信度低，主要原因是输入数据不足，不能把完整卦文误读成完整事实。"
+      : "本次有一定数据支撑，但链上世界变化快，仍需滚动复核。";
+
+  return [
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "              戒 语",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    `  ${riskHint}${confidenceHint}`,
+    ...watchConditions.map((condition) => `  ✗ ${condition}`),
+  ].join("\n");
+}
+
+function buildClosingPoem(context: LongReadingContext): string[] {
+  if (context.riskLevel === "critical") {
+    return [
+      `${context.hexagram.name.slice(0, 2)}入局水声寒，`,
+      "池浅筹高莫倚栏。",
+      "一念贪风吹烛灭，",
+      "留得本金是青山。",
+    ];
+  }
+  if (context.hypePhase === "ignition" || context.hypePhase === "expansion") {
+    return [
+      `${context.hexagram.name.slice(0, 2)}初明照夜盘，`,
+      "鲸影未深众意宽。",
+      "若见真量随风起，",
+      "不贪不惧自心安。",
+    ];
+  }
+  return [
+    `${context.hexagram.name.slice(0, 2)}云开未见山，`,
+    "人声起落在池边。",
+    "卦中有象非天命，",
+    "且把风险放眼前。",
+  ];
+}
+
 function buildWatchConditions(
   metrics: TokenMarketMetrics,
   hypePhase: HypePhase,
@@ -597,10 +1280,11 @@ function buildMatchReading(
 ): string {
   const riskyHexagram = /坎|困|剥|遁|否|蛊|蹇|睽|讼/.test(hexagram.name);
   if (confidence === "low") return "数据不足：卦象可读，但链上交叉验证较弱。";
-  if (riskyHexagram && (riskLevel === "high" || riskLevel === "critical")) {
+  if (riskLevel === "critical") return "数据强烈压过卦象：即使卦面有可用之势，也必须先按极高风险处理。";
+  if (riskyHexagram && riskLevel === "high") {
     return "卦象与数据一致：玄学和指标都指向风险优先。";
   }
-  if (!riskyHexagram && (hypePhase === "ignition" || hypePhase === "expansion") && riskLevel !== "critical") {
+  if (!riskyHexagram && (hypePhase === "ignition" || hypePhase === "expansion")) {
     return "卦象与数据偏顺：热度仍有扩张条件，但不代表可买。";
   }
   return "卦象与数据混合：存在可观察信号，但确认度不足。";
@@ -639,10 +1323,18 @@ function smartMoneyText(signal: SmartMoneySignal): string {
   return texts[signal];
 }
 
+function confidenceText(confidence: "low" | "medium" | "high"): string {
+  const texts: Record<"low" | "medium" | "high", string> = {
+    low: "低",
+    medium: "中",
+    high: "高",
+  };
+  return texts[confidence];
+}
+
 export function validateChaosTokenOracleRequest(body: unknown): string | null {
   if (!body || typeof body !== "object") return "请求体必须是 JSON 对象";
   const value = body as Partial<ChaosTokenOracleRequest>;
-  if (!cleanText(value.chain)) return "chain 不能为空";
   if (!cleanText(value.token)) return "token 不能为空";
   if (cleanText(value.chain).length > 40) return "chain 过长";
   if (cleanText(value.token).length > 120) return "token 过长";
