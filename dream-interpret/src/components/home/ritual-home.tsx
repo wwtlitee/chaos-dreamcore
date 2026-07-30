@@ -41,14 +41,16 @@ export function RitualHome() {
             </div>
 
             <h1 className="sr-only">混沌梦核</h1>
-            <Image
-              src="/images/chaos/logo-layout-c-silver-violet-alpha.png"
-              alt="混沌梦核"
-              width={1015}
-              height={953}
-              priority
-              className="home-wordmark reveal-up delay-100"
-            />
+            <div className="home-wordmark-wrap reveal-up delay-100">
+              <Image
+                src="/images/chaos/logo-layout-c-silver-violet.png"
+                alt="混沌梦核"
+                width={1015}
+                height={953}
+                priority
+                className="home-wordmark"
+              />
+            </div>
 
             <div className="home-entry-caption reveal-up delay-200">
               <span>SELECT RITUAL</span>

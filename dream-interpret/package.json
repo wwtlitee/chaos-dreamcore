@@ -1,12 +1,13 @@
 {
   "name": "dream-interpret",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:oracles": "node --no-warnings --experimental-strip-types --test tests/free-oracles.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -1,169 +1,94 @@
 "use client";
 
-import { type CSSProperties, type FormEvent, useState } from "react";
+import { type CSSProperties, type FormEvent, useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, Loader2, Send, Sparkles } from "lucide-react";
 import { MainLayout } from "@/components/layout/main-layout";
-import { Textarea } from "@/components/ui/textarea";
+import { StructuredOracleReport } from "@/components/oracle/structured-oracle-report";
+import { getOracleFormSchema, type OracleFormField } from "@/lib/oracle-form-schema";
 import { getOracleModule, type OracleKey } from "@/lib/oracle-modules";
-import { Loader2, Send, Sparkles } from "lucide-react";
+import type { OracleReport } from "@/lib/oracle-report";
 
 interface OracleWorkspaceProps {
   oracleKey: OracleKey;
 }
 
-const ritualSlots: Record<OracleKey, { label: string; value: string }[]> = {
+const ENDPOINTS: Record<OracleKey, string> = {
+  dream: "/api/dream",
+  hexagram: "/api/free-hexagram",
+  fortune: "/api/free-fortune",
+  stock: "/api/free-stock",
+  token: "/api/free-token",
+  worldcup: "/api/free-worldcup-oracle",
+};
+
+const EXAMPLES: Record<OracleKey, Array<{ label: string; values: Record<string, string> }>> = {
   dream: [
-    { label: "SYMBOL", value: "梦象" },
-    { label: "MOOD", value: "情绪" },
-    { label: "TRACE", value: "回声" },
+    { label: "水下旧城", values: { dream: "我反复梦见自己在深水里的旧城寻找出口，最后听见故人的声音。", emotion: "不安", recurrence: "反复出现", wakeFeeling: "疲惫但清醒" } },
+    { label: "反复坠落", values: { dream: "我从很高的地方不断坠落，每次落地前都会惊醒。", emotion: "恐惧", recurrence: "反复出现", wakeFeeling: "心跳很快" } },
   ],
   hexagram: [
-    { label: "LINE", value: "卦线" },
-    { label: "TIME", value: "时位" },
-    { label: "MOVE", value: "动爻" },
-  ],
-  stock: [
-    { label: "TICKER", value: "代码" },
-    { label: "TREND", value: "趋势" },
-    { label: "RISK", value: "风险" },
+    { label: "事业推进", values: { question: "今天是否适合推进新合作？", category: "事业", currentState: "正在权衡" } },
+    { label: "关系节点", values: { question: "这段关系今天应该主动沟通吗？", category: "感情", currentState: "遇到阻力" } },
   ],
   fortune: [
-    { label: "DAY", value: "今日" },
-    { label: "THEME", value: "主题" },
-    { label: "FLOW", value: "流向" },
+    { label: "今日综合", values: { name: "小牛", birthDate: "1996-08-12", focus: "综合" } },
+    { label: "事业节奏", values: { name: "小牛", birthDate: "1996-08-12", focus: "事业", question: "今天工作推进要注意什么？" } },
+  ],
+  stock: [
+    { label: "AAPL", values: { stock: "AAPL", window: "1d", question: "短期趋势与风险" } },
+    { label: "腾讯", values: { stock: "腾讯", window: "1w", question: "量价是否配合？" } },
   ],
   token: [
-    { label: "CHAIN", value: "链域" },
-    { label: "HEAT", value: "热度" },
-    { label: "RISK", value: "风险" },
+    { label: "BTC", values: { token: "BTC", chain: "自动识别", window: "24h", question: "当前热度是否透支？" } },
+    { label: "ETH", values: { token: "ETH", chain: "ethereum", window: "7d", question: "中短期结构如何？" } },
   ],
   worldcup: [
-    { label: "MATCH", value: "对阵" },
-    { label: "FORM", value: "状态" },
-    { label: "UPSET", value: "冷门" },
+    { label: "阿根廷 vs 法国", values: { homeTeam: "阿根廷", awayTeam: "法国", question: "常规时间走势如何？" } },
+    { label: "巴西 vs 德国", values: { homeTeam: "巴西", awayTeam: "德国", question: "阵容与气势谁占优？" } },
   ],
 };
 
-function buildLocalReading(key: OracleKey, input: string) {
-  const seed = input.trim().length;
-  const tones = ["收束", "转折", "蓄势", "显化"];
-  const focus = ["先稳住节奏", "先处理关系", "先减少噪音", "先做小决定"];
-  const index = seed % tones.length;
-
-  const titleMap: Record<OracleKey, string> = {
-    dream: "梦核",
-    hexagram: "卦象",
-    stock: "股票卦",
-    fortune: "运势",
-    token: "币卦",
-    worldcup: "赛事卦",
-  };
-
-  return `${titleMap[key]}：${tones[index]}\n\n主线：${focus[index]}。\n提示：把问题缩小到一个动作。`;
-}
-
-function buildPaidBoundaryMessage(key: OracleKey, input: string) {
-  const normalizedInput = input.trim();
-
-  if (key === "stock") {
-    return [
-      "混沌梦核-股票：服务准备中",
-      "",
-      "股票卦象将作为独立 OKX.AI A2MCP / x402 付费服务发布；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
-      `已记录输入：${normalizedInput}`,
-      "计划能力：股票代码识别、行情趋势验卦、波动风险与娱乐观察提示。",
-      "边界声明：输出仅供娱乐与研究，不构成投资建议。",
-    ].join("\n");
-  }
-
-  if (key === "fortune") {
-    return [
-      "混沌梦核-运势：服务准备中",
-      "",
-      "个人运势卦象将作为独立 OKX.AI A2MCP / x402 付费服务发布；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
-      `已记录输入：${normalizedInput}`,
-      "计划能力：每日运势、关系/事业主题、节奏提醒与娱乐观察提示。",
-      "边界声明：输出仅供娱乐与自我观察，不构成医疗、心理咨询、法律或投资建议。",
-    ].join("\n");
-  }
-
-  if (key === "token") {
-    return [
-      "混沌梦核-币：付费调用入口",
-      "",
-      "完整链上数据验卦报告需通过 OKX.AI A2MCP / x402 付费调用生成；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
-      `已记录输入：${normalizedInput}`,
-      "API Endpoint：/api/chaos-token-oracle",
-      "请求方式：POST JSON，必填 token，可选 chain、symbol、window、metrics。",
-      "边界声明：输出仅供娱乐与研究，不构成投资建议。",
-    ].join("\n");
-  }
-
-  if (key === "worldcup") {
-    return [
-      "混沌梦核-世界杯：服务准备中",
-      "",
-      "世界杯赛事卦象将作为独立 OKX.AI A2MCP / x402 付费服务发布；当前等待 OKX.AI 审核通过后更新公开跳转入口。",
-      `已记录输入：${normalizedInput}`,
-      "计划能力：赛事卦象、热度验卦、冷门风险与娱乐观察提示。",
-      "边界声明：输出仅供娱乐与研究，不构成投注、投资或确定性预测建议。",
-    ].join("\n");
-  }
-
-  return null;
-}
-
 export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
   const oracle = getOracleModule(oracleKey);
-  const heroArtStyle = {
-    "--oracle-hero-image": `url(${oracle.heroImage})`,
-  } as CSSProperties;
+  const schema = getOracleFormSchema(oracleKey);
   const shellStyle = {
     "--oracle-accent": oracle.accent,
     "--oracle-accent-soft": oracle.accentSoft,
     "--oracle-accent-deep": oracle.accentDeep,
+    "--oracle-hero-image": `url(${oracle.heroImage})`,
   } as CSSProperties;
-  const [input, setInput] = useState("");
+  const [values, setValues] = useState<Record<string, string>>(() => initialValues(oracleKey));
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-
-  const canSubmit = input.trim().length > 0 && !isLoading;
+  const [report, setReport] = useState<OracleReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const canSubmit = useMemo(
+    () => schema.required.every((field) => values[field]?.trim()) && !isLoading,
+    [isLoading, schema.required, values],
+  );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
-
     setIsLoading(true);
-    setResult(null);
-
+    setReport(null);
+    setError(null);
     try {
-      if (oracle.key === "dream") {
-        const response = await fetch("/api/dream", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ dream: input }),
-        });
-
-        if (!response.ok) {
-          throw new Error("解析失败");
-        }
-
-        const data = await response.json();
-        setResult(data.interpretation);
-        return;
-      }
-
-      const paidBoundaryMessage = buildPaidBoundaryMessage(oracle.key, input);
-      if (paidBoundaryMessage) {
-        setResult(paidBoundaryMessage);
-        return;
-      }
-
-      setResult(buildLocalReading(oracle.key, input));
-    } catch (error) {
-      console.error("解析错误:", error);
-      setResult("解析失败，请稍后再试。");
+      const payload = {
+        ...values,
+        ...(values.seedNumber ? { seedNumber: Number(values.seedNumber) } : {}),
+        mode: "full_ritual",
+      };
+      const response = await fetch(ENDPOINTS[oracleKey], {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as { report?: OracleReport; error?: string };
+      if (!response.ok || !data.report) throw new Error(data.error || "报告生成失败，请稍后再试。");
+      setReport(data.report);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "报告生成失败，请稍后再试。");
     } finally {
       setIsLoading(false);
     }
@@ -171,90 +96,121 @@ export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
 
   return (
     <MainLayout hideFooter>
-      <div className="chaos-shell dream-workbench-shell" style={shellStyle}>
-        <div className="dream-starfield" aria-hidden="true" />
-        <div className="star-grid" aria-hidden="true" />
+      <div className="oracle-v3 oracle-v4" style={shellStyle} data-oracle={oracle.key}>
+        <div className="oracle-v3-bg" aria-hidden="true" />
+        <div className="oracle-v3-noise" aria-hidden="true" />
+        <div className="oracle-v3-frame oracle-v3-frame-compact">
+          <div className="oracle-v3-crumb">
+            <Link href="/" className="oracle-v3-back"><ArrowLeft className="size-3.5" />首页</Link>
+            <span>/</span><strong>{oracle.title}</strong>
+          </div>
 
-        <section className="oracle-page-shell px-4 py-6 md:py-10">
-          <div className="oracle-stage-grid mx-auto grid max-w-7xl gap-8 lg:grid-cols-[34rem_minmax(0,1fr)]">
-            <aside
-              className="oracle-page-hero oracle-page-hero-art-only"
-              data-oracle={oracle.key}
-            >
-              <div className="oracle-hero-art-shell" style={heroArtStyle} aria-hidden="true" />
-              <h1 className="sr-only">{oracle.title}</h1>
+          <div className="oracle-v3-stage">
+            <aside className="oracle-v3-portal" data-oracle={oracle.key}>
+              <div className="oracle-v3-portal-art" aria-hidden="true" />
             </aside>
 
-            <main className="oracle-input-panel oracle-single-panel">
-              <div className="oracle-panel-head">
-                <div>
-                  <p className="eyebrow">{oracle.label}</p>
-                  <h2>{oracle.action}</h2>
-                  <p className="oracle-panel-subtitle">{oracle.statusText}</p>
-                </div>
-                <div className="status-chip">
-                  <span />
-                  ONLINE
-                </div>
+            <main className="oracle-v3-console">
+              <div className="oracle-v3-console-head">
+                <div><p>{oracle.label}</p><h1>{oracle.action}</h1></div>
+                <span className="oracle-v3-chip"><Sparkles className="size-3.5" />{isLoading ? "解析中" : oracle.rune}</span>
               </div>
 
-              <form onSubmit={handleSubmit} className="dream-form">
-                <label htmlFor={`${oracle.key}-input`} className="dream-label">
-                  输入
-                  <span>{input.length} 字符</span>
-                </label>
-                <div className="textarea-shell">
-                  <Textarea
-                    id={`${oracle.key}-input`}
-                    placeholder={oracle.placeholder}
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    className="dream-textarea oracle-main-textarea"
+              <div className="oracle-v3-examples" aria-label="快速示例">
+                {EXAMPLES[oracleKey].map((example) => (
+                  <button
+                    key={example.label}
+                    type="button"
+                    className="oracle-v3-example"
+                    onClick={() => setValues((current) => ({ ...current, ...example.values }))}
                     disabled={isLoading}
-                  />
-                </div>
+                  >
+                    {example.label}
+                  </button>
+                ))}
+              </div>
 
-                <div className="oracle-ritual-slots" aria-hidden="true">
-                  {ritualSlots[oracle.key].map((slot, index) => (
-                    <div key={slot.label} className="oracle-ritual-slot">
-                      <span>0{index + 1}</span>
-                      <strong>{slot.value}</strong>
-                      <i>{slot.label}</i>
-                    </div>
+              <form onSubmit={handleSubmit} className="oracle-v3-form oracle-v4-form">
+                <div className="oracle-form-grid">
+                  {schema.fields.map((field) => (
+                    <OracleField
+                      field={field}
+                      value={values[field.name] || ""}
+                      disabled={isLoading}
+                      key={field.name}
+                      onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))}
+                    />
                   ))}
                 </div>
-
-                <div className="dream-action-row">
-                  <p>CORE READY / {oracle.rune}</p>
-                  <button type="submit" className="magnet-button star-border" disabled={!canSubmit}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        解析中
-                      </>
-                    ) : (
-                      <>
-                        <Send className="size-4" />
-                        {oracle.action}
-                      </>
-                    )}
+                <div className="oracle-v3-actions">
+                  <p>{schema.hint}</p>
+                  <button type="submit" disabled={!canSubmit}>
+                    {isLoading ? <><Loader2 className="size-4 animate-spin" />正在生成长报告</> : <><Send className="size-4" />{oracle.action}</>}
                   </button>
                 </div>
               </form>
 
-              {result && (
-                <section className="inline-result-panel">
-                  <div className="flex items-center gap-2 text-white">
-                    <Sparkles className="size-4 text-amber-200" />
-                    <span>结果</span>
+              <section className={`oracle-v3-result oracle-v4-result ${report ? "has-result" : ""}`} aria-live="polite">
+                {report ? (
+                  <StructuredOracleReport report={report} />
+                ) : error ? (
+                  <div className="oracle-v4-error"><strong>生成失败</strong><p>{error}</p></div>
+                ) : (
+                  <div className="oracle-v4-empty">
+                    <span>{oracle.rune}</span>
+                    <strong>完整报告将在这里展开</strong>
+                    <p>填写上方信息后，将生成总览、细项分析、行动建议与边界说明。</p>
                   </div>
-                  <div className="dream-result-body">{result}</div>
-                </section>
-              )}
+                )}
+              </section>
             </main>
           </div>
-        </section>
+        </div>
       </div>
     </MainLayout>
   );
+}
+
+function OracleField({
+  field,
+  value,
+  disabled,
+  onChange,
+}: {
+  field: OracleFormField;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const common = {
+    id: `oracle-${field.name}`,
+    name: field.name,
+    value,
+    disabled,
+    required: field.required,
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => onChange(event.target.value),
+  };
+  return (
+    <label className={`oracle-form-field ${field.span === "full" ? "is-full" : ""}`} htmlFor={common.id}>
+      <span>{field.label}{field.required ? <i>必填</i> : null}</span>
+      {field.type === "textarea" ? (
+        <textarea {...common} rows={3} maxLength={500} placeholder={field.placeholder} />
+      ) : field.type === "select" ? (
+        <select {...common}>
+          {field.options?.map((option) => <option value={option} key={option}>{option}</option>)}
+        </select>
+      ) : (
+        <input {...common} type={field.type} min={field.type === "number" ? 1 : undefined} max={field.type === "number" ? 999 : undefined} placeholder={field.placeholder} />
+      )}
+    </label>
+  );
+}
+
+function initialValues(key: OracleKey) {
+  const date = new Date().toISOString().slice(0, 10);
+  const schema = getOracleFormSchema(key);
+  return Object.fromEntries(schema.fields.map((field) => [
+    field.name,
+    field.type === "select" ? field.options?.[0] || "" : field.type === "date" ? date : "",
+  ]));
 }
