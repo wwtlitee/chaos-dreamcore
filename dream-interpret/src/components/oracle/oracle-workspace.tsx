@@ -2,12 +2,16 @@
 
 import { type CSSProperties, type FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, RotateCcw, Send, Sparkles } from "lucide-react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { StructuredOracleReport } from "@/components/oracle/structured-oracle-report";
 import { getOracleFormSchema, type OracleFormField } from "@/lib/oracle-form-schema";
 import { getOracleModule, type OracleKey } from "@/lib/oracle-modules";
 import type { OracleReport } from "@/lib/oracle-report";
+import {
+  reduceOracleWorkspaceMode,
+  type OracleWorkspaceMode,
+} from "@/lib/oracle-workspace-state";
 
 interface OracleWorkspaceProps {
   oracleKey: OracleKey;
@@ -62,6 +66,7 @@ export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [report, setReport] = useState<OracleReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<OracleWorkspaceMode>("form");
   const canSubmit = useMemo(
     () => schema.required.every((field) => values[field]?.trim()) && !isLoading,
     [isLoading, schema.required, values],
@@ -70,6 +75,7 @@ export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
+    setWorkspaceMode((current) => reduceOracleWorkspaceMode(current, "submit"));
     setIsLoading(true);
     setReport(null);
     setError(null);
@@ -87,11 +93,19 @@ export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
       const data = (await response.json()) as { report?: OracleReport; error?: string };
       if (!response.ok || !data.report) throw new Error(data.error || "报告生成失败，请稍后再试。");
       setReport(data.report);
+      setWorkspaceMode((current) => reduceOracleWorkspaceMode(current, "success"));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "报告生成失败，请稍后再试。");
+      setWorkspaceMode((current) => reduceOracleWorkspaceMode(current, "failure"));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRetry = () => {
+    setReport(null);
+    setError(null);
+    setWorkspaceMode((current) => reduceOracleWorkspaceMode(current, "retry"));
   };
 
   return (
@@ -110,45 +124,60 @@ export function OracleWorkspace({ oracleKey }: OracleWorkspaceProps) {
               <div className="oracle-v3-portal-art" aria-hidden="true" />
             </aside>
 
-            <main className="oracle-v3-console">
-              <div className="oracle-v3-console-head">
-                <div><p>{oracle.label}</p><h1>{oracle.action}</h1></div>
-                <span className="oracle-v3-chip"><Sparkles className="size-3.5" />{isLoading ? "解析中" : oracle.rune}</span>
-              </div>
+            <main className={`oracle-v3-console ${workspaceMode === "report" ? "is-report-mode" : ""}`}>
+              {workspaceMode === "form" ? (
+                <>
+                  <div className="oracle-v3-console-head">
+                    <div><p>{oracle.label}</p><h1>{oracle.action}</h1></div>
+                    <span className="oracle-v3-chip"><Sparkles className="size-3.5" />{isLoading ? "解析中" : oracle.rune}</span>
+                  </div>
 
-              <div className="oracle-v3-examples" aria-label="快速示例">
-                {EXAMPLES[oracleKey].map((example) => (
-                  <button
-                    key={example.label}
-                    type="button"
-                    className="oracle-v3-example"
-                    onClick={() => setValues((current) => ({ ...current, ...example.values }))}
-                    disabled={isLoading}
-                  >
-                    {example.label}
-                  </button>
-                ))}
-              </div>
+                  <div className="oracle-v3-examples" aria-label="快速示例">
+                    {EXAMPLES[oracleKey].map((example) => (
+                      <button
+                        key={example.label}
+                        type="button"
+                        className="oracle-v3-example"
+                        onClick={() => setValues((current) => ({ ...current, ...example.values }))}
+                        disabled={isLoading}
+                      >
+                        {example.label}
+                      </button>
+                    ))}
+                  </div>
 
-              <form onSubmit={handleSubmit} className="oracle-v3-form oracle-v4-form">
-                <div className="oracle-form-grid">
-                  {schema.fields.map((field) => (
-                    <OracleField
-                      field={field}
-                      value={values[field.name] || ""}
-                      disabled={isLoading}
-                      key={field.name}
-                      onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))}
-                    />
-                  ))}
-                </div>
-                <div className="oracle-v3-actions">
-                  <p>{schema.hint}</p>
-                  <button type="submit" disabled={!canSubmit}>
-                    {isLoading ? <><Loader2 className="size-4 animate-spin" />正在生成长报告</> : <><Send className="size-4" />{oracle.action}</>}
+                  <form onSubmit={handleSubmit} className="oracle-v3-form oracle-v4-form">
+                    <div className="oracle-form-grid">
+                      {schema.fields.map((field) => (
+                        <OracleField
+                          field={field}
+                          value={values[field.name] || ""}
+                          disabled={isLoading}
+                          key={field.name}
+                          onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))}
+                        />
+                      ))}
+                    </div>
+                    <div className="oracle-v3-actions">
+                      <p>{schema.hint}</p>
+                      <button type="submit" disabled={!canSubmit}>
+                        {isLoading ? <><Loader2 className="size-4 animate-spin" />正在生成长报告</> : <><Send className="size-4" />{oracle.action}</>}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              ) : report ? (
+                <div className="oracle-v4-report-toolbar">
+                  <div>
+                    <span>{oracle.label} / REPORT</span>
+                    <strong>{report.title}</strong>
+                  </div>
+                  <button type="button" onClick={handleRetry}>
+                    <RotateCcw className="size-3.5" />
+                    重新测算
                   </button>
                 </div>
-              </form>
+              ) : null}
 
               <section className={`oracle-v3-result oracle-v4-result ${report ? "has-result" : ""}`} aria-live="polite">
                 {report ? (

@@ -266,9 +266,6 @@
   width: min(100%, 25.5rem);
   margin-top: clamp(0.25rem, 1.2vh, 0.7rem);
   margin-left: -0.6rem;
-  /* 黑底原图 + screen：黑底隐去，笔触完整，无 alpha 毛边 */
-  mix-blend-mode: screen;
-  isolation: isolate;
 }
 
 .home-wordmark {
@@ -4188,6 +4185,68 @@
   background: #0a0a0a;
 }
 
+.oracle-v4 .oracle-v3-console.is-report-mode {
+  gap: 0.65rem;
+}
+
+.oracle-v4-report-toolbar {
+  display: flex;
+  min-height: 3.2rem;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #212327;
+  border-radius: 8px;
+  background: #191919;
+  padding: 0.55rem 0.65rem 0.55rem 0.8rem;
+}
+
+.oracle-v4-report-toolbar > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.oracle-v4-report-toolbar span {
+  color: var(--oracle-accent-soft);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.13em;
+}
+
+.oracle-v4-report-toolbar strong {
+  overflow: hidden;
+  color: #dadbdf;
+  font-size: 0.76rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oracle-v4-report-toolbar button {
+  display: inline-flex;
+  min-height: 2.2rem;
+  flex: none;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.42rem 0.72rem;
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+.oracle-v4-report-toolbar button:hover {
+  border-color: rgb(255 255 255 / 0.38);
+  background: #1a1c20;
+}
+
+.oracle-v4 .oracle-v3-console.is-report-mode .oracle-v4-result {
+  min-height: 0;
+}
+
 .oracle-v4-empty,
 .oracle-v4-error {
   display: grid;
@@ -4513,6 +4572,14 @@
 
   .oracle-v4 .oracle-v3-actions button {
     justify-content: center;
+  }
+
+  .oracle-v4-report-toolbar {
+    align-items: flex-start;
+  }
+
+  .oracle-v4-report-toolbar strong {
+    max-width: 11rem;
   }
 }
 

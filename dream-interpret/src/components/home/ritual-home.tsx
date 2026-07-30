@@ -4,6 +4,7 @@ import { type CSSProperties, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, CircleDot, Sparkles } from "lucide-react";
+import { HOME_WORDMARK_ASSET } from "@/lib/home-branding";
 import { oracleModules, type OracleModule } from "@/lib/oracle-modules";
 
 const ritualMarks = ["乾", "坤", "坎", "离", "震", "巽", "艮", "兑"];
@@ -43,7 +44,7 @@ export function RitualHome() {
             <h1 className="sr-only">混沌梦核</h1>
             <div className="home-wordmark-wrap reveal-up delay-100">
               <Image
-                src="/images/chaos/logo-layout-c-silver-violet.png"
+                src={HOME_WORDMARK_ASSET}
                 alt="混沌梦核"
                 width={1015}
                 height={953}

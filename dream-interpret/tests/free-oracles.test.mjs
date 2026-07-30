@@ -88,3 +88,19 @@ test("已有长报告可以无损转换为统一结构化报告", async () => {
   assert.equal(report.sections[1].kind, "lines");
   assert.equal(report.sections[1].items.length, 2);
 });
+
+test("报告成功后进入折叠报告模式，重新测算和失败会恢复表单", async () => {
+  const workspace = await load("../src/lib/oracle-workspace-state.ts");
+  assert.equal(typeof workspace.reduceOracleWorkspaceMode, "function");
+
+  assert.equal(workspace.reduceOracleWorkspaceMode("form", "submit"), "form");
+  assert.equal(workspace.reduceOracleWorkspaceMode("form", "success"), "report");
+  assert.equal(workspace.reduceOracleWorkspaceMode("report", "retry"), "form");
+  assert.equal(workspace.reduceOracleWorkspaceMode("report", "failure"), "form");
+});
+
+test("首页使用真正透明的 Alpha Logo 素材", async () => {
+  const branding = await load("../src/lib/home-branding.ts");
+  assert.equal(typeof branding.HOME_WORDMARK_ASSET, "string");
+  assert.match(branding.HOME_WORDMARK_ASSET, /-alpha\.png$/);
+});
