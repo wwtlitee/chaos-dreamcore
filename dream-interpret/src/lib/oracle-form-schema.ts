@@ -25,7 +25,9 @@ const SCHEMAS: Record<FreeOracleKey, OracleFormSchema> = {
       { name: "dream", label: "梦境描述", type: "textarea", placeholder: "写下最清晰的梦中画面、人物和结尾…", required: true, span: "full" },
       { name: "emotion", label: "梦中主情绪", type: "select", options: ["不安", "恐惧", "悲伤", "愤怒", "轻松", "喜悦", "好奇", "复杂"], span: "half" },
       { name: "recurrence", label: "是否重复", type: "select", options: ["首次或不确定", "偶尔出现", "反复出现"], span: "half" },
-      { name: "wakeFeeling", label: "醒来后的感受", type: "text", placeholder: "例：疲惫但清醒", span: "full" },
+      { name: "ending", label: "梦中结局", type: "select", options: ["不确定", "顺利脱困", "仍被困住", "突然惊醒", "自然结束"], span: "half" },
+      { name: "wakeFeeling", label: "醒来后的感受", type: "text", placeholder: "例：疲惫但清醒", span: "half" },
+      { name: "recentContext", label: "近期现实背景（可选）", type: "textarea", placeholder: "例：最近正在考虑结束一段压力很大的合作…", span: "full" },
     ],
   },
   hexagram: {
@@ -36,7 +38,8 @@ const SCHEMAS: Record<FreeOracleKey, OracleFormSchema> = {
       { name: "category", label: "问题领域", type: "select", options: ["综合", "事业", "感情", "财运", "学业", "人际", "身心"], span: "half" },
       { name: "currentState", label: "当前状态", type: "select", options: ["尚未开始", "正在权衡", "已经推进", "遇到阻力", "等待结果"], span: "half" },
       { name: "targetDate", label: "起卦日期", type: "date", span: "half" },
-      { name: "seedNumber", label: "心念数字（可选）", type: "number", placeholder: "1–999", span: "half" },
+      { name: "targetTime", label: "起卦时间", type: "time", span: "half" },
+      { name: "seedNumber", label: "心念数字（可选）", type: "number", placeholder: "1–999", span: "full" },
     ],
   },
   fortune: {

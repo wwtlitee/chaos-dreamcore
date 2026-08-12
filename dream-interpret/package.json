@@ -1,13 +1,13 @@
 {
   "name": "dream-interpret",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:oracles": "node --no-warnings --experimental-strip-types --test tests/free-oracles.test.mjs"
+    "test:oracles": "node --no-warnings --experimental-strip-types --test tests/free-oracles.test.mjs tests/formula-oracles.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -17,6 +17,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
+    "lunar-javascript": "^1.7.7",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",

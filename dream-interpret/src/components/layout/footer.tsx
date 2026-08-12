@@ -4,15 +4,15 @@ import { Brain, MoonStar } from "lucide-react";
 
 const footerLinks = [
   { href: "/dream", label: "梦境解析" },
+  { href: "/hexagram", label: "每日一卦" },
   { href: "/fortune", label: "运势卦象" },
   { href: "/stock", label: "股票卦象" },
   { href: "/token", label: "代币卦象" },
-  { href: "/worldcup", label: "世界杯赛事" },
   { href: "/knowledge", label: "玄学知识库" },
   { href: "/payment", label: "付费方案" },
 ];
 
-const modules = ["每日一卦", "运势卦象", "股票卦象", "代币卦象", "世界杯赛事"];
+const modules = ["梦境组合解析", "梅花易数", "四柱运势", "股票数据验卦", "代币数据验卦"];
 
 export function Footer() {
   return (
@@ -29,7 +29,7 @@ export function Footer() {
               </span>
             </div>
             <p className="max-w-xs text-sm leading-6 text-white/52">
-              以梦境为主轴，把卦象、运势、股票、代币与赛事信号汇入同一份梦核综合报告。
+              以可复核的传统公式与公开数据为底座，把梦境、卦象、运势、股票和代币信号整理成可读报告。
             </p>
           </div>
 

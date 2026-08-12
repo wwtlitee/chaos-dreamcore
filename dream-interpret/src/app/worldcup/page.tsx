@@ -1,5 +1,5 @@
-import { OracleWorkspace } from "@/components/oracle/oracle-workspace";
+import { notFound } from "next/navigation";
 
 export default function WorldCupPage() {
-  return <OracleWorkspace oracleKey="worldcup" />;
+  notFound();
 }

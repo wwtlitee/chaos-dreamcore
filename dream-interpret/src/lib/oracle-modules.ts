@@ -28,7 +28,7 @@ export interface OracleModule {
   statusText: string;
 }
 
-export const oracleModules: OracleModule[] = [
+export const allOracleModules: OracleModule[] = [
   {
     key: "dream",
     title: "梦境",
@@ -134,6 +134,8 @@ export const oracleModules: OracleModule[] = [
   },
 ];
 
+export const oracleModules = allOracleModules.filter((module) => module.key !== "worldcup");
+
 export function getOracleModule(key: OracleKey) {
-  return oracleModules.find((module) => module.key === key) ?? oracleModules[0];
+  return allOracleModules.find((module) => module.key === key) ?? allOracleModules[0];
 }

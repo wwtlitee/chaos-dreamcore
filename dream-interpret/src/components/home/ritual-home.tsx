@@ -55,7 +55,7 @@ export function RitualHome() {
 
             <div className="home-entry-caption reveal-up delay-200">
               <span>SELECT RITUAL</span>
-              <i>六域入口已校准</i>
+              <i>五域入口已校准</i>
             </div>
 
             <div className="home-rune-grid reveal-up delay-200">

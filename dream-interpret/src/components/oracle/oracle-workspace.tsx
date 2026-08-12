@@ -28,16 +28,16 @@ const ENDPOINTS: Record<OracleKey, string> = {
 
 const EXAMPLES: Record<OracleKey, Array<{ label: string; values: Record<string, string> }>> = {
   dream: [
-    { label: "水下旧城", values: { dream: "我反复梦见自己在深水里的旧城寻找出口，最后听见故人的声音。", emotion: "不安", recurrence: "反复出现", wakeFeeling: "疲惫但清醒" } },
-    { label: "反复坠落", values: { dream: "我从很高的地方不断坠落，每次落地前都会惊醒。", emotion: "恐惧", recurrence: "反复出现", wakeFeeling: "心跳很快" } },
+    { label: "水下旧城", values: { dream: "我反复梦见自己在深水里的旧城寻找出口，最后听见故人的声音。", emotion: "不安", recurrence: "反复出现", wakeFeeling: "疲惫但清醒", ending: "仍被困住", recentContext: "最近正在考虑是否离开一段消耗很久的合作。" } },
+    { label: "反复坠落", values: { dream: "我从很高的地方不断坠落，每次落地前都会惊醒。", emotion: "恐惧", recurrence: "反复出现", wakeFeeling: "心跳很快", ending: "突然惊醒", recentContext: "近期工作节点密集，担心无法按时完成。" } },
   ],
   hexagram: [
     { label: "事业推进", values: { question: "今天是否适合推进新合作？", category: "事业", currentState: "正在权衡" } },
     { label: "关系节点", values: { question: "这段关系今天应该主动沟通吗？", category: "感情", currentState: "遇到阻力" } },
   ],
   fortune: [
-    { label: "今日综合", values: { name: "小牛", birthDate: "1996-08-12", focus: "综合" } },
-    { label: "事业节奏", values: { name: "小牛", birthDate: "1996-08-12", focus: "事业", question: "今天工作推进要注意什么？" } },
+    { label: "今日综合", values: { name: "小牛", birthDate: "1996-08-12", birthTime: "09:30", focus: "综合", question: "今天整体节奏应该如何安排？" } },
+    { label: "事业节奏", values: { name: "小牛", birthDate: "1996-08-12", birthTime: "09:30", focus: "事业", question: "今天工作推进要注意什么？" } },
   ],
   stock: [
     { label: "AAPL", values: { stock: "AAPL", window: "1d", question: "短期趋势与风险" } },
@@ -236,10 +236,18 @@ function OracleField({
 }
 
 function initialValues(key: OracleKey) {
-  const date = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const schema = getOracleFormSchema(key);
   return Object.fromEntries(schema.fields.map((field) => [
     field.name,
-    field.type === "select" ? field.options?.[0] || "" : field.type === "date" ? date : "",
+    field.type === "select"
+      ? field.options?.[0] || ""
+      : field.type === "date"
+        ? date
+        : field.name === "targetTime"
+          ? time
+          : "",
   ]));
 }
